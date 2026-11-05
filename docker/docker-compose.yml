@@ -1,0 +1,26 @@
+name: roboreel
+
+services:
+  roboreel:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: roboreel:latest
+    gpus: all
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - DISPLAY=${DISPLAY}
+      - MS_ASSET_DIR=/workspace/assets
+      - XAUTHORITY=${XAUTHORITY:-/root/.Xauthority}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${XAUTHORITY:-/dev/null}:/root/.Xauthority:ro
+      - ..:/workspace
+    working_dir: /workspace
+    network_mode: host
+    ipc: host
+    stdin_open: true
+    tty: true
+    entrypoint: ["bash", "/workspace/docker/entrypoint.sh"]
+    command: bash

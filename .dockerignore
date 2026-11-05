@@ -1,0 +1,7 @@
+# The image only needs these files; everything else is bind-mounted.
+*
+!environment.yml
+!docker/split_env.py
+!docker/entrypoint.sh
+!docker/graspgen_conda_explicit.txt
+!docker/graspgen_pip_constraints.txt
