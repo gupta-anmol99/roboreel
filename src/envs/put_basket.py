@@ -14,28 +14,34 @@ from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs import Pose
-from mani_skill.utils.structs.types import Array, GPUMemoryConfig, SimConfig
+from mani_skill.utils.structs.types import Array, GPUMemoryConfig, SceneConfig, SimConfig
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
+from camera_poses import fixed_camera_poses
+from custom_table_scene_builder import ROBOT_BASE_POSE, CustomTableSceneBuilder
 from distractor_mixin import DistractorMixin
 from panda_wristcam_hd import PandaWristCamHD
 
 
-ASSETS_ROOT = Path(__file__).parent.parent.parent / "assets" / "scenes" / "put_basket"
-OBJECT_SCALE = 0.8
-BASKET_SCALE_FACTOR = 0.5
+ASSETS_ROOT = Path(__file__).parent.parent.parent / "assets" / "scenes_v2" / "put_basket"
+# Panda and elephant: each is 11.5 cm tall as it rests on the table. Both basket tasks use these.
+TOY_SCALES = {"object1": 0.853, "object2": 0.710}
+BASKET_SCALE = 1.0  # the v2 basket is modelled at real-world size
 BASKET_NAME = "basket"
-ROBOT_BASE_POS = np.array([-0.615, 0.0], dtype=np.float64)
+BASKET_WALL_THICKNESS = 0.018  # straight sections of the wall's collision shape
+BASKET_MASS = 0.25  # from the basket's USD file
+BASKET_FRICTION = 0.6  # from the basket's USD file
 SPAWN_REL_X_MIN = 0.30
 SPAWN_REL_X_MAX = 1.05
 SPAWN_REL_Y_MIN = -0.55
 SPAWN_REL_Y_MAX = 0.55
-BASKET_SPAWN_X_MIN = -0.1
-BASKET_SPAWN_X_MAX = -0.05
+# v1's distances from the robot base: v1's range (-0.1, -0.05) moved with the base, -0.615 to -0.95.
+BASKET_SPAWN_X_MIN = -0.435
+BASKET_SPAWN_X_MAX = -0.385
 BASKET_SPAWN_Y = 0.0
-SIDE_OBJECT_GAP = 0.05
+# Spawn distance sideways from the basket centre, where v1's saved scenes have the settled toys.
+SIDE_OBJECT_Y_OFFSETS = {"object1": 0.246, "object2": 0.277}
 SIDE_OBJECT_X_OFFSET = 0.04
 
 
@@ -65,6 +71,20 @@ def load_object_footprint_radius(json_path: Path) -> float:
     return 0.5 * float(np.sqrt(footprint_extents[0] ** 2 + footprint_extents[1] ** 2))
 
 
+def basket_half_width(json_path: Path) -> float:
+    """Half the width of a square basket, measured to the outside of its walls, before scaling."""
+    extents = load_object_metadata(json_path)["obb_extents"]
+    return 0.5 * float(max(extents))
+
+
+def xy_within_basket(basket_pose, point: np.ndarray, half_width: float) -> bool:
+    """Whether a world point lies within half_width of the basket centre along both square axes."""
+    basket_from_world = np.linalg.inv(basket_pose.to_transformation_matrix()[0].cpu().numpy())
+    local = basket_from_world[:3, :3] @ point + basket_from_world[:3, 3]
+    # The mesh is Y-up, so X and Z are the basket's horizontal axes.
+    return abs(float(local[0])) <= half_width and abs(float(local[2])) <= half_width
+
+
 def discover_objects(assets_root: Path) -> list[str]:
     names: list[str] = []
     for asset_dir in sorted(assets_root.iterdir()):
@@ -91,14 +111,13 @@ class PutBasketEnv(DistractorMixin, BaseEnv):
         robot_init_qpos_noise=0.02,
         basket_name=BASKET_NAME,
         pick_objects=None,
-        object_scale=OBJECT_SCALE,
-        basket_scale_factor=BASKET_SCALE_FACTOR,
+        basket_scale=BASKET_SCALE,
         **kwargs,
     ):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         self.basket_name = basket_name
-        self.object_scale = float(object_scale)
-        self.basket_scale = float(object_scale) * float(basket_scale_factor)
+        self.basket_scale = float(basket_scale)
+        self.object_scale = {**TOY_SCALES, basket_name: self.basket_scale}
         self.assets_root = ASSETS_ROOT
         self.object_names = discover_objects(self.assets_root)
         self.pick_objects = pick_objects or [
@@ -110,6 +129,8 @@ class PutBasketEnv(DistractorMixin, BaseEnv):
     @property
     def _default_sim_config(self):
         return SimConfig(
+            # PCM reports false overlaps of about 5 cm on thin convex shapes, which launch objects.
+            scene_config=SceneConfig(enable_pcm=False),
             gpu_memory_config=GPUMemoryConfig(
                 found_lost_pairs_capacity=2**25,
                 max_rigid_patch_count=2**18,
@@ -118,14 +139,12 @@ class PutBasketEnv(DistractorMixin, BaseEnv):
 
     @property
     def _default_sensor_configs(self):
-        pose_front = sapien_utils.look_at(eye=[0.4, 0, 0.6], target=[-0.1, 0, 0.1])
-        pose_left = sapien_utils.look_at(eye=[0.4, 0.4, 0.6], target=[-0.1, 0, 0.1])
-        pose_right = sapien_utils.look_at(eye=[0.4, -0.4, 0.6], target=[-0.1, 0, 0.1])
+        pose_front, pose_left, pose_right = fixed_camera_poses()
         pose_overhead = sapien_utils.look_at(eye=[0, 0, 0.6], target=[-0.1, 0, 0.1])
         return [
-            CameraConfig("base_camera", pose=pose_front, width=512, height=512, fov=np.pi / 2, near=0.01, far=100),
-            CameraConfig("left_camera", pose=pose_left, width=512, height=512, fov=np.pi / 2, near=0.01, far=100),
-            CameraConfig("right_camera", pose=pose_right, width=512, height=512, fov=np.pi / 2, near=0.01, far=100),
+            CameraConfig("base_camera", pose=pose_front, width=512, height=288, fov=np.deg2rad(43), near=0.01, far=100),
+            CameraConfig("left_camera", pose=pose_left, width=512, height=288, fov=np.deg2rad(43), near=0.01, far=100),
+            CameraConfig("right_camera", pose=pose_right, width=512, height=288, fov=np.deg2rad(43), near=0.01, far=100),
             CameraConfig("overhead_camera", pose=pose_overhead, width=512, height=512, fov=np.pi / 2, near=0.01, far=100),
         ]
 
@@ -143,10 +162,10 @@ class PutBasketEnv(DistractorMixin, BaseEnv):
         )
 
     def _load_agent(self, options: dict):
-        super()._load_agent(options, sapien.Pose(p=[*ROBOT_BASE_POS, 0]))
+        super()._load_agent(options, ROBOT_BASE_POSE)
 
     def _load_scene(self, options: dict):
-        self.table_scene = TableSceneBuilder(
+        self.table_scene = CustomTableSceneBuilder(
             env=self,
             robot_init_qpos_noise=self.robot_init_qpos_noise,
         )
@@ -158,23 +177,31 @@ class PutBasketEnv(DistractorMixin, BaseEnv):
         super()._load_scene(options)
 
     def _build_object(self, name: str, index: int):
-        scale = self.basket_scale if name == self.basket_name else self.object_scale
+        scale = self.object_scale[name]
         asset_dir = self.assets_root / name
         visual_glb = str(asset_dir / "visual.glb")
         collision_obj = str(asset_dir / "collision_vhacd.obj")
         object_json = asset_dir / "orientation_result.json"
 
+        is_basket = name == self.basket_name
+        material = None  # the scene default
+        if is_basket:
+            material = sapien.physx.PhysxMaterial(
+                static_friction=BASKET_FRICTION,
+                dynamic_friction=BASKET_FRICTION,
+                restitution=sapien.physx.get_default_material().restitution,
+            )
         builder = self.scene.create_actor_builder()
         builder.add_visual_from_file(visual_glb, scale=[scale] * 3)
         builder.add_multiple_convex_collisions_from_file(
-            collision_obj, scale=[scale] * 3
+            collision_obj, scale=[scale] * 3, material=material
         )
         obj = builder.build(name=name)
 
         for entity in obj._objs:
             for component in entity.components:
                 if isinstance(component, sapien.physx.PhysxRigidDynamicComponent):
-                    component.mass = 0.2
+                    component.mass = BASKET_MASS if is_basket else 0.2
 
         obj.set_pose(
             sapien.Pose(
@@ -195,17 +222,14 @@ class PutBasketEnv(DistractorMixin, BaseEnv):
         basket_x = float(np.random.uniform(BASKET_SPAWN_X_MIN, BASKET_SPAWN_X_MAX))
         basket_y = BASKET_SPAWN_Y
 
-        basket_json = self.assets_root / self.basket_name / "orientation_result.json"
-        basket_radius = load_object_footprint_radius(basket_json) * self.basket_scale
         side_signs = [-1.0, 1.0]
         side_index = 0
 
         for obj in self.all_objects:
-            scale = self.basket_scale if obj.name == self.basket_name else self.object_scale
+            scale = self.object_scale[obj.name]
             object_json = self.assets_root / obj.name / "orientation_result.json"
             half_size = load_object_half_size(object_json) * scale
             quat = load_object_quaternion(object_json).tolist()
-            footprint_radius = load_object_footprint_radius(object_json) * scale
 
             if obj.name not in active_names:
                 obj.set_pose(
@@ -223,7 +247,7 @@ class PutBasketEnv(DistractorMixin, BaseEnv):
             else:
                 side = side_signs[side_index % len(side_signs)]
                 side_index += 1
-                y_offset = basket_radius + footprint_radius + SIDE_OBJECT_GAP
+                y_offset = SIDE_OBJECT_Y_OFFSETS[obj.name]
                 x = basket_x - SIDE_OBJECT_X_OFFSET + float(np.random.uniform(-0.05, 0.05))
                 y = basket_y + side * y_offset + float(np.random.uniform(-0.01, 0.01))
 
@@ -244,33 +268,32 @@ class PutBasketEnv(DistractorMixin, BaseEnv):
         for _ in range(10):
             self.scene.step()
 
+    @property
+    def basket_inner_half_width(self) -> float:
+        basket_json = self.assets_root / self.basket_name / "orientation_result.json"
+        return basket_half_width(basket_json) * self.basket_scale - BASKET_WALL_THICKNESS
+
+    def object_in_basket(self, pick_name: str) -> bool:
+        """Whether the object's centre is between the walls and at a height the basket can hold."""
+        basket_obj = self.object_actors[self.basket_name]
+        basket_z = float(basket_obj.pose.p[0, 2])
+        basket_half = load_object_half_size(
+            self.assets_root / self.basket_name / "orientation_result.json"
+        ) * self.basket_scale
+        pick_half = load_object_half_size(
+            self.assets_root / pick_name / "orientation_result.json"
+        ) * self.object_scale[pick_name]
+        pick_pos = self.object_actors[pick_name].pose.p[0].cpu().numpy()
+        return (
+            xy_within_basket(basket_obj.pose, pick_pos, self.basket_inner_half_width)
+            and basket_z - basket_half <= float(pick_pos[2]) <= basket_z + basket_half + pick_half
+        )
+
     def evaluate(self):
         if not self.pick_objects:
             return {"success": torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)}
 
-        basket_obj = self.object_actors[self.basket_name]
-        basket_pos = basket_obj.pose.p[0].cpu().numpy()
-        basket_half = load_object_half_size(
-            self.assets_root / self.basket_name / "orientation_result.json"
-        ) * self.basket_scale
-        basket_radius = load_object_footprint_radius(
-            self.assets_root / self.basket_name / "orientation_result.json"
-        ) * self.basket_scale
-
-        all_in_basket = True
-        for pick_name in self.pick_objects:
-            pick_obj = self.object_actors[pick_name]
-            pick_pos = pick_obj.pose.p[0].cpu().numpy()
-            pick_half = load_object_half_size(
-                self.assets_root / pick_name / "orientation_result.json"
-            ) * self.object_scale
-
-            xy_dist = float(np.linalg.norm(pick_pos[:2] - basket_pos[:2]))
-            min_z = float(basket_pos[2] - basket_half)
-            max_z = float(basket_pos[2] + basket_half + pick_half)
-            in_basket = xy_dist <= basket_radius and min_z <= float(pick_pos[2]) <= max_z
-            all_in_basket = all_in_basket and in_basket
-
+        all_in_basket = all(self.object_in_basket(name) for name in self.pick_objects)
         return {
             "success": torch.tensor([all_in_basket], dtype=torch.bool, device=self.device)
         }

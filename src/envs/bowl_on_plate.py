@@ -12,11 +12,12 @@ from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.sensors.camera import CameraConfig
 from mani_skill.utils import sapien_utils
 from mani_skill.utils.registration import register_env
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs import Pose
-from mani_skill.utils.structs.types import Array, GPUMemoryConfig, SimConfig
+from mani_skill.utils.structs.types import Array, GPUMemoryConfig, SceneConfig, SimConfig
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
+from camera_poses import fixed_camera_poses
+from custom_table_scene_builder import ROBOT_BASE_POSE, CustomTableSceneBuilder
 from distractor_mixin import DistractorMixin
 from panda_wristcam_hd import PandaWristCamHD
 from put_basket import (
@@ -26,14 +27,16 @@ from put_basket import (
 )
 
 
-ASSETS_ROOT = Path(__file__).parent.parent.parent / "assets" / "scenes" / "bowl_on_plate"
+ASSETS_ROOT = Path(__file__).parent.parent.parent / "assets" / "scenes_v2" / "bowl_on_plate"
 BOWL_NAME = "bowl"
 PLATE_NAME = "plate"
-OBJECT_SCALE = 1.2
+OBJECT_SCALE = 1.0  # the v2 meshes are modelled at real-world size
+BOWL_STATIC_FRICTION = 1.0
+BOWL_DYNAMIC_FRICTION = 1.0
 
-ROBOT_BASE_POS = np.array([-0.615, 0.0], dtype=np.float64)
 
-PLATE_SPAWN_X_RANGE = (-0.14, -0.09)
+# v1's distances from the robot base: v1's range (-0.14, -0.09) moved with the base, -0.615 to -0.95.
+PLATE_SPAWN_X_RANGE = (-0.475, -0.425)
 PLATE_SPAWN_Y_RANGE = (-0.05, 0.05)
 BOWL_SIDE_OFFSET = 0.30   # bowl placed at −y of plate by this offset
 BOWL_X_JITTER = 0.02
@@ -69,6 +72,8 @@ class BowlPlateEnv(DistractorMixin, BaseEnv):
     @property
     def _default_sim_config(self):
         return SimConfig(
+            # PCM reports false overlaps of about 5 cm on thin convex shapes, which launch objects.
+            scene_config=SceneConfig(enable_pcm=False),
             gpu_memory_config=GPUMemoryConfig(
                 found_lost_pairs_capacity=2**25,
                 max_rigid_patch_count=2**18,
@@ -77,14 +82,12 @@ class BowlPlateEnv(DistractorMixin, BaseEnv):
 
     @property
     def _default_sensor_configs(self):
-        pose_front = sapien_utils.look_at(eye=[0.4, 0, 0.6], target=[-0.1, 0, 0.1])
-        pose_left = sapien_utils.look_at(eye=[0.4, 0.4, 0.6], target=[-0.1, 0, 0.1])
-        pose_right = sapien_utils.look_at(eye=[0.4, -0.4, 0.6], target=[-0.1, 0, 0.1])
+        pose_front, pose_left, pose_right = fixed_camera_poses()
         pose_overhead = sapien_utils.look_at(eye=[0, 0, 0.6], target=[-0.1, 0, 0.1])
         return [
-            CameraConfig("base_camera", pose=pose_front, width=512, height=512, fov=np.pi / 2, near=0.01, far=100),
-            CameraConfig("left_camera", pose=pose_left, width=512, height=512, fov=np.pi / 2, near=0.01, far=100),
-            CameraConfig("right_camera", pose=pose_right, width=512, height=512, fov=np.pi / 2, near=0.01, far=100),
+            CameraConfig("base_camera", pose=pose_front, width=512, height=288, fov=np.deg2rad(43), near=0.01, far=100),
+            CameraConfig("left_camera", pose=pose_left, width=512, height=288, fov=np.deg2rad(43), near=0.01, far=100),
+            CameraConfig("right_camera", pose=pose_right, width=512, height=288, fov=np.deg2rad(43), near=0.01, far=100),
             CameraConfig("overhead_camera", pose=pose_overhead, width=512, height=512, fov=np.pi / 2, near=0.01, far=100),
         ]
 
@@ -102,10 +105,10 @@ class BowlPlateEnv(DistractorMixin, BaseEnv):
         )
 
     def _load_agent(self, options: dict):
-        super()._load_agent(options, sapien.Pose(p=[*ROBOT_BASE_POS, 0]))
+        super()._load_agent(options, ROBOT_BASE_POSE)
 
     def _load_scene(self, options: dict):
-        self.table_scene = TableSceneBuilder(
+        self.table_scene = CustomTableSceneBuilder(
             env=self,
             robot_init_qpos_noise=self.robot_init_qpos_noise,
         )
@@ -124,8 +127,15 @@ class BowlPlateEnv(DistractorMixin, BaseEnv):
 
         builder = self.scene.create_actor_builder()
         builder.add_visual_from_file(visual_glb, scale=[self.object_scale] * 3)
+        material = None  # the scene default
+        if name == BOWL_NAME:
+            material = sapien.physx.PhysxMaterial(
+                static_friction=BOWL_STATIC_FRICTION,
+                dynamic_friction=BOWL_DYNAMIC_FRICTION,
+                restitution=sapien.physx.get_default_material().restitution,
+            )
         builder.add_multiple_convex_collisions_from_file(
-            collision_obj, scale=[self.object_scale] * 3
+            collision_obj, scale=[self.object_scale] * 3, material=material
         )
         obj = builder.build(name=name)
 

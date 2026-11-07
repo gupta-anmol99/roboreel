@@ -55,7 +55,7 @@ def parse_args():
         default=None,
         help=(
             "Folder holding with_distraction/<task>.pkl and without_distraction/<task>.pkl "
-            f"(default: ${INIT_STATES_DIR_ENV_VAR}, then the repository's init_states/)"
+            f"(default: ${INIT_STATES_DIR_ENV_VAR}, then the repository's assets/data/init_states/)"
         ),
     )
     p.add_argument("--distract", action="store_true", help="Evaluate on the scenes with distractors")

@@ -104,7 +104,7 @@ assets/data/dataset/
 
 | Data | Location | Use |
 |---|---|---|
-| Test scenes | `init_states/` in this repository | Starting state of each evaluation scene |
+| Test scenes | `assets/data/init_states/` in this repository | Starting state of each evaluation scene |
 | Human videos, episodes `0080`-`0099` | [Hugging Face](https://huggingface.co/datasets/LogosRoboticsLab/roboreel) | The videos your policy watches during evaluation |
 | Training data | [Hugging Face](https://huggingface.co/datasets/LogosRoboticsLab/roboreel) | Not used by the evaluation scripts |
 
@@ -158,7 +158,7 @@ results/human_no_distraction__env_without_distraction/EmptyBasket-v1/
 
 ```json
 {
-  "benchmark_version": "v1",
+  "benchmark_version": "v2",
   "env_id": "EmptyBasket-v1",
   "distract": false,
   "human_distract": false,
@@ -301,7 +301,7 @@ print("Success rate:", np.mean(successes))
 
 | Key | Contents |
 |---|---|
-| `obs["sensor_data"][camera]["rgb"]` | Image of shape `(512, 512, 3)` |
+| `obs["sensor_data"][camera]["rgb"]` | Image; see the camera table for its size |
 | `obs["sensor_param"][camera]` | Camera intrinsics and extrinsics |
 | `obs["agent"]["qpos"]`, `obs["agent"]["qvel"]` | Joint positions and velocities |
 | `obs["extra"]` | Task-specific values, such as `tcp_pose`, the gripper's pose |
@@ -310,13 +310,15 @@ With `--obs-mode state`, `obs` is instead one flat array.
 
 The cameras are:
 
-| Camera | Mount | Position (x, y, z) | Field of view |
-|---|---|---|---:|
-| `base_camera` | Fixed | 0.4, 0, 0.6 | 90° |
-| `left_camera` | Fixed | 0.4, 0.4, 0.6 | 90° |
-| `right_camera` | Fixed | 0.4, -0.4, 0.6 | 90° |
-| `overhead_camera` | Fixed | 0, 0, 0.6 | 90° |
-| `hand_camera` | On the gripper | Moves with the gripper | 90° |
+| Camera | Mount | Position (x, y, z) | Image size (height, width) | Field of view |
+|---|---|---|---|---:|
+| `base_camera` | Fixed | 0.618, -0.005, 0.729 | 288, 512 | 43° |
+| `left_camera` | Fixed | -0.706, 0.670, 0.732 | 288, 512 | 43° |
+| `right_camera` | Fixed | -0.769, -0.803, 0.686 | 288, 512 | 43° |
+| `overhead_camera` | Fixed | 0, 0, 0.6 | 512, 512 | 90° |
+| `hand_camera` | On the gripper | Moves with the gripper | 512, 512 | 90° |
+
+The robot's base is at x = -0.95, y = 0, z = -0.20 in every task: beside the table, 20 cm below its surface.
 
 ### Actions
 
@@ -352,7 +354,7 @@ settings with the same tasks, success checks and scoring. Report them separately
 Scenes with distractors have 1 or 2 extra objects on the table. These can't be moved, but the robot
 can collide with them.
 
-Scenes are in `init_states/without_distraction/` and `init_states/with_distraction/`. Each folder has one file per task. `Toaster-v1` is in `press_toaster.pkl`, `BowlOnPlate-v1` in
+Scenes are in `assets/data/init_states/without_distraction/` and `assets/data/init_states/with_distraction/`. Each folder has one file per task. `Toaster-v1` is in `press_toaster.pkl`, `BowlOnPlate-v1` in
 `bowl_in_plate.pkl`, `PutBasket-v1` in `toys_in_basket.pkl` and `ObjectInDrawer-v1` in
 `toys_in_drawer.pkl`. The other files are named after their task, such as `open_lid.pkl`.
 
@@ -420,8 +422,8 @@ when you read scores:
 
 | Version | Table | Cameras | Status |
 |---|---|---|---|
-| `v1` | Default ManiSkill wood table | Setup used in the published paper | This release |
-| `v2` | Updated | Updated | Planned |
+| `v1` | Default ManiSkill wood table | Setup used in the published paper | Released |
+| `v2` | Black table | Calibrated cameras | In development |
 
 Init states only work with the version they were made for. The benchmark raises an error if an
 init state's robot position doesn't match the current version.

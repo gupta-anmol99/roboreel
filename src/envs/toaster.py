@@ -14,13 +14,14 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.io_utils import load_json
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs import Articulation, Link, Pose
-from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
-from mani_skill.utils.scene_builder.table import TableSceneBuilder
+from mani_skill.utils.structs.types import GPUMemoryConfig, SceneConfig, SimConfig
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent))
 from utils import get_articulation_builder
+from camera_poses import fixed_camera_poses
+from custom_table_scene_builder import ROBOT_BASE_POSE, CustomTableSceneBuilder
 from distractor_mixin import DistractorMixin
 from panda_wristcam_hd import PandaWristCamHD
 
@@ -67,6 +68,8 @@ class ToasterEnv(DistractorMixin, BaseEnv):
     @property
     def _default_sim_config(self):
         return SimConfig(
+            # PCM reports false overlaps of about 5 cm on thin convex shapes, which launch objects.
+            scene_config=SceneConfig(enable_pcm=False),
             spacing=5,
             gpu_memory_config=GPUMemoryConfig(
                 max_rigid_contact_count=2**21, max_rigid_patch_count=2**19
@@ -75,14 +78,12 @@ class ToasterEnv(DistractorMixin, BaseEnv):
 
     @property
     def _default_sensor_configs(self):
-        pose_front = sapien_utils.look_at(eye=[0.4, 0, 0.6], target=[-0.1, 0, 0.1])
-        pose_left = sapien_utils.look_at(eye=[0.4, 0.4, 0.6], target=[-0.1, 0, 0.1])
-        pose_right = sapien_utils.look_at(eye=[0.4, -0.4, 0.6], target=[-0.1, 0, 0.1])
+        pose_front, pose_left, pose_right = fixed_camera_poses()
         pose_overhead = sapien_utils.look_at(eye=[0, 0, 0.6], target=[-0.1, 0, 0.1])
         return [
-            CameraConfig("base_camera", pose=pose_front, width=512, height=512, fov=np.pi / 2, near=0.01, far=100),
-            CameraConfig("left_camera", pose=pose_left, width=512, height=512, fov=np.pi / 2, near=0.01, far=100),
-            CameraConfig("right_camera", pose=pose_right, width=512, height=512, fov=np.pi / 2, near=0.01, far=100),
+            CameraConfig("base_camera", pose=pose_front, width=512, height=288, fov=np.deg2rad(43), near=0.01, far=100),
+            CameraConfig("left_camera", pose=pose_left, width=512, height=288, fov=np.deg2rad(43), near=0.01, far=100),
+            CameraConfig("right_camera", pose=pose_right, width=512, height=288, fov=np.deg2rad(43), near=0.01, far=100),
             CameraConfig("overhead_camera", pose=pose_overhead, width=512, height=512, fov=np.pi / 2, near=0.01, far=100),
         ]
 
@@ -92,10 +93,10 @@ class ToasterEnv(DistractorMixin, BaseEnv):
         return CameraConfig("render_camera", pose=pose, width=512, height=512, fov=1, near=0.01, far=100)
 
     def _load_agent(self, options: dict):
-        super()._load_agent(options, sapien.Pose(p=[-0.615, 0, 0]))
+        super()._load_agent(options, ROBOT_BASE_POSE)
 
     def _load_scene(self, options: dict):
-        self.table_scene = TableSceneBuilder(
+        self.table_scene = CustomTableSceneBuilder(
             self, robot_init_qpos_noise=self.robot_init_qpos_noise
         )
         self.table_scene.build()

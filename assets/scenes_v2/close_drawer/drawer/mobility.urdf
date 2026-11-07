@@ -1,0 +1,93 @@
+<?xml version="1.0"?>
+<robot name="mesh_drawer_unit">
+  <link name="cabinet">
+    <inertial>
+      <origin xyz="-0.00000 0.00000 0.43717"/>
+      <mass value="4.5"/>
+      <inertia ixx="0.194208" ixy="0" ixz="0" iyy="0.206594" iyz="0" izz="0.110833"/>
+    </inertial>
+    <visual><geometry><mesh filename="cabinet.glb"/></geometry></visual>
+    <collision><origin xyz="0.16245 0.14005 0.27140"/><geometry><box size="0.01800 0.01200 0.54280"/></geometry></collision>
+    <collision><origin xyz="0.16245 -0.14005 0.27140"/><geometry><box size="0.01800 0.01200 0.54280"/></geometry></collision>
+    <collision><origin xyz="-0.16245 0.14005 0.27140"/><geometry><box size="0.01800 0.01200 0.54280"/></geometry></collision>
+    <collision><origin xyz="-0.16245 -0.14005 0.27140"/><geometry><box size="0.01800 0.01200 0.54280"/></geometry></collision>
+    <collision><origin xyz="0.00000 0.00000 0.55080"/><geometry><box size="0.34290 0.29210 0.01600"/></geometry></collision>
+    <collision><origin xyz="0.16245 0.00000 0.01000"/><geometry><box size="0.01800 0.26810 0.02000"/></geometry></collision>
+    <collision><origin xyz="-0.16245 0.00000 0.02600"/><geometry><box size="0.01800 0.26810 0.02000"/></geometry></collision>
+    <collision><origin xyz="0.00000 0.13777 0.50850"/><geometry><box size="0.30690 0.01355 0.01500"/></geometry></collision>
+    <collision><origin xyz="0.00000 -0.13777 0.50850"/><geometry><box size="0.30690 0.01355 0.01500"/></geometry></collision>
+    <collision><origin xyz="0.00000 0.13777 0.37450"/><geometry><box size="0.30690 0.01355 0.01500"/></geometry></collision>
+    <collision><origin xyz="0.00000 -0.13777 0.37450"/><geometry><box size="0.30690 0.01355 0.01500"/></geometry></collision>
+    <collision><origin xyz="0.00000 0.13777 0.24050"/><geometry><box size="0.30690 0.01355 0.01500"/></geometry></collision>
+    <collision><origin xyz="0.00000 -0.13777 0.24050"/><geometry><box size="0.30690 0.01355 0.01500"/></geometry></collision>
+  </link>
+  <link name="drawer_top">
+    <inertial>
+      <origin xyz="0.00195 0.00000 0.43898"/>
+      <mass value="0.9"/>
+      <inertia ixx="0.009181" ixy="0" ixz="0" iyy="0.013232" iyz="0" izz="0.020119"/>
+    </inertial>
+    <visual><geometry><mesh filename="drawer_top.glb"/></geometry></visual>
+    <collision><origin xyz="0.16220 0.00000 0.45600"/><geometry><box size="0.00450 0.25200 0.10800"/></geometry></collision>
+    <collision><origin xyz="-0.15830 0.00000 0.45600"/><geometry><box size="0.00450 0.25200 0.10800"/></geometry></collision>
+    <collision><origin xyz="0.00195 0.12375 0.45600"/><geometry><box size="0.31600 0.00450 0.10800"/></geometry></collision>
+    <collision><origin xyz="0.00195 0.12825 0.50920"/><geometry><box size="0.32500 0.00450 0.00160"/></geometry></collision>
+    <collision><origin xyz="0.00195 -0.12375 0.45600"/><geometry><box size="0.31600 0.00450 0.10800"/></geometry></collision>
+    <collision><origin xyz="0.00195 -0.12825 0.50920"/><geometry><box size="0.32500 0.00450 0.00160"/></geometry></collision>
+    <collision><origin xyz="0.00195 0.00000 0.40380"/><geometry><box size="0.31600 0.24300 0.00360"/></geometry></collision>
+  </link>
+  <joint name="drawer_top_joint" type="prismatic">
+    <parent link="cabinet"/>
+    <child link="drawer_top"/>
+    <origin xyz="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="0.2540" effort="100" velocity="1"/>
+    <dynamics damping="4" friction="0.5"/>
+  </joint>
+  <link name="drawer_middle">
+    <inertial>
+      <origin xyz="0.00195 -0.00000 0.30498"/>
+      <mass value="0.9"/>
+      <inertia ixx="0.009181" ixy="0" ixz="0" iyy="0.013232" iyz="0" izz="0.020119"/>
+    </inertial>
+    <visual><geometry><mesh filename="drawer_middle.glb"/></geometry></visual>
+    <collision><origin xyz="0.16220 0.00000 0.32200"/><geometry><box size="0.00450 0.25200 0.10800"/></geometry></collision>
+    <collision><origin xyz="-0.15830 0.00000 0.32200"/><geometry><box size="0.00450 0.25200 0.10800"/></geometry></collision>
+    <collision><origin xyz="0.00195 0.12375 0.32200"/><geometry><box size="0.31600 0.00450 0.10800"/></geometry></collision>
+    <collision><origin xyz="0.00195 0.12825 0.37520"/><geometry><box size="0.32500 0.00450 0.00160"/></geometry></collision>
+    <collision><origin xyz="0.00195 -0.12375 0.32200"/><geometry><box size="0.31600 0.00450 0.10800"/></geometry></collision>
+    <collision><origin xyz="0.00195 -0.12825 0.37520"/><geometry><box size="0.32500 0.00450 0.00160"/></geometry></collision>
+    <collision><origin xyz="0.00195 0.00000 0.26980"/><geometry><box size="0.31600 0.24300 0.00360"/></geometry></collision>
+  </link>
+  <joint name="drawer_middle_joint" type="prismatic">
+    <parent link="cabinet"/>
+    <child link="drawer_middle"/>
+    <origin xyz="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="0.2540" effort="100" velocity="1"/>
+    <dynamics damping="4" friction="0.5"/>
+  </joint>
+  <link name="drawer_bottom">
+    <inertial>
+      <origin xyz="0.00195 0.00000 0.17098"/>
+      <mass value="0.9"/>
+      <inertia ixx="0.009181" ixy="0" ixz="0" iyy="0.013232" iyz="0" izz="0.020119"/>
+    </inertial>
+    <visual><geometry><mesh filename="drawer_bottom.glb"/></geometry></visual>
+    <collision><origin xyz="0.16220 0.00000 0.18800"/><geometry><box size="0.00450 0.25200 0.10800"/></geometry></collision>
+    <collision><origin xyz="-0.15830 0.00000 0.18800"/><geometry><box size="0.00450 0.25200 0.10800"/></geometry></collision>
+    <collision><origin xyz="0.00195 0.12375 0.18800"/><geometry><box size="0.31600 0.00450 0.10800"/></geometry></collision>
+    <collision><origin xyz="0.00195 0.12825 0.24120"/><geometry><box size="0.32500 0.00450 0.00160"/></geometry></collision>
+    <collision><origin xyz="0.00195 -0.12375 0.18800"/><geometry><box size="0.31600 0.00450 0.10800"/></geometry></collision>
+    <collision><origin xyz="0.00195 -0.12825 0.24120"/><geometry><box size="0.32500 0.00450 0.00160"/></geometry></collision>
+    <collision><origin xyz="0.00195 0.00000 0.13580"/><geometry><box size="0.31600 0.24300 0.00360"/></geometry></collision>
+  </link>
+  <joint name="drawer_bottom_joint" type="prismatic">
+    <parent link="cabinet"/>
+    <child link="drawer_bottom"/>
+    <origin xyz="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="0.2540" effort="100" velocity="1"/>
+    <dynamics damping="4" friction="0.5"/>
+  </joint>
+</robot>

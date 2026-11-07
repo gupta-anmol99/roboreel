@@ -19,12 +19,12 @@ import torch
 import envs  # noqa: F401
 
 INIT_STATES_DIR_ENV_VAR = "ROBOREEL_INIT_STATES_DIR"
-DEFAULT_INIT_STATES_DIR = Path(__file__).parent.parent / "init_states"
+DEFAULT_INIT_STATES_DIR = Path(__file__).parent.parent / "assets" / "data" / "init_states"
 HUMAN_DEMOS_DIR_ENV_VAR = "ROBOREEL_HUMAN_DEMOS_DIR"
 DEFAULT_HUMAN_DEMOS_DIR = Path(__file__).parent.parent / "human_demos"
 ROBOT_UID = "panda_wristcam_hd"
 
-BENCHMARK_VERSION = "v1"
+BENCHMARK_VERSION = "v2"
 CONTROL_MODES = ("pd_joint_pos", "pd_ee_delta_pose")
 
 # Steps allowed per episode, for every task.
@@ -87,7 +87,7 @@ class Policy:
 
 
 def resolve_init_states_dir(init_states_dir: str | Path | None = None) -> Path:
-    """Use the given folder, then $ROBOREEL_INIT_STATES_DIR, then the repository's init_states/."""
+    """Use the given folder, then $ROBOREEL_INIT_STATES_DIR, then the repository's assets/data/init_states/."""
     location = init_states_dir or os.environ.get(INIT_STATES_DIR_ENV_VAR) or DEFAULT_INIT_STATES_DIR
     path = Path(location).expanduser()
     if not path.is_dir():
